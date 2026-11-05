@@ -33,6 +33,7 @@
 - 🧹 **No fake changes.** Lines that change at every export (timestamps, counters, FortiGate's re-salted secrets, UniFi uptimes) are removed or masked before comparing.
 - 🔒 **Secrets masked in Git**: Cisco secrets and SNMP communities, FortiGate `ENC` values, UniFi passphrases. Need a restorable copy? `raw_dir` keeps full copies outside Git, private (`chmod 600`), with a retention count.
 - 🔑 **No password in the config file**: `password_env` and `token_env` read them from environment variables.
+- 🛡️ **SSH host keys are checked**: remembered at the first connection, then a backup is **refused** if a device's key changes (a sign of interception). `host_key = "strict"` only trusts keys you added yourself.
 - 🔔 **Notifications** to Telegram or any webhook (Discord, Slack, Mattermost) when something changed or failed.
 - ⚡ **Parallel**, and one failing device never stops the others. Exit code `2` when a device failed, for your monitoring.
 

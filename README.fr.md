@@ -32,6 +32,7 @@
 - 🧹 **Pas de faux changements.** Les lignes qui bougent à chaque export (horodatages, compteurs, secrets FortiGate re-salés, durées de fonctionnement UniFi) sont retirées ou masquées avant la comparaison.
 - 🔒 **Secrets masqués dans Git** : secrets Cisco et communautés SNMP, valeurs `ENC` du FortiGate, phrases de passe UniFi. Besoin d'une copie restaurable ? `raw_dir` garde des copies complètes hors de Git, privées (`chmod 600`), avec un nombre de copies à conserver.
 - 🔑 **Aucun mot de passe dans le fichier de configuration** : `password_env` et `token_env` les lisent dans des variables d'environnement.
+- 🛡️ **Les clés SSH des équipements sont vérifiées** : mémorisées à la première connexion, puis la sauvegarde est **refusée** si la clé d'un équipement change (signe d'une interception). `host_key = "strict"` n'accepte que les clés que tu as ajoutées toi-même.
 - 🔔 **Notifications** sur Telegram ou n'importe quel webhook (Discord, Slack, Mattermost) quand quelque chose a changé ou échoué.
 - ⚡ **En parallèle**, et un équipement en échec n'arrête jamais les autres. Code de sortie `2` quand un équipement a échoué, pour ta supervision.
 

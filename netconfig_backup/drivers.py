@@ -5,6 +5,7 @@ import http.cookiejar
 import json
 import re
 import ssl
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -81,13 +82,48 @@ CISCO_SECRETS = [
 ]
 
 
+_KNOWN_HOSTS_LOCK = threading.Lock()
+
+
+def _host_key_policy(paramiko, dev: dict):
+    """tofu (default): remember the key on first connection, then refuse any change.
+    strict: only keys already in known_hosts. ignore: accept anything (not recommended)."""
+    mode = str(dev.get("host_key", "tofu")).lower()
+    path = dev.get("_known_hosts")
+    if mode == "ignore":
+        return paramiko.AutoAddPolicy()
+    if mode == "strict":
+        return paramiko.RejectPolicy()
+
+    class TrustOnFirstUse(paramiko.MissingHostKeyPolicy):
+        def missing_host_key(self, client, hostname, key):
+            client.get_host_keys().add(hostname, key.get_name(), key)
+            if path:
+                with _KNOWN_HOSTS_LOCK:
+                    hk = paramiko.HostKeys()
+                    try:
+                        hk.load(path)
+                    except FileNotFoundError:
+                        pass
+                    hk.add(hostname, key.get_name(), key)
+                    hk.save(path)
+    return TrustOnFirstUse()
+
+
 def _ssh_run(dev: dict, commands: list[str]) -> str:
     try:
         import paramiko  # imported here: only SSH devices need it
     except ImportError as e:
         raise BackupError("SSH devices need paramiko: pip install paramiko") from e
     client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    known = dev.get("_known_hosts")
+    if known:
+        with _KNOWN_HOSTS_LOCK:
+            try:
+                client.load_host_keys(known)
+            except FileNotFoundError:
+                pass
+    client.set_missing_host_key_policy(_host_key_policy(paramiko, dev))
     try:
         client.connect(dev["host"], port=int(dev.get("port", 22)), username=dev["username"],
                        password=dev.get("password"), key_filename=dev.get("key_file"),
@@ -118,6 +154,13 @@ def _ssh_run(dev: dict, commands: list[str]) -> str:
         out = buf.decode("utf-8", "replace")
     except BackupError:
         raise
+    except paramiko.BadHostKeyException as e:
+        raise BackupError(f"SSH host key of {dev['host']} has CHANGED: possible interception, backup refused. "
+                          f"If the device was replaced on purpose, remove its line from {known}.") from e
+    except paramiko.SSHException as e:
+        if "not found in known_hosts" in str(e):
+            raise BackupError(f"unknown SSH host key for {dev['host']} (host_key = \"strict\"): add it to {known}") from e
+        raise BackupError(f"SSH: {e}") from e
     except Exception as e:  # noqa: BLE001 - shown to the user
         raise BackupError(f"SSH: {e}") from e
     finally:

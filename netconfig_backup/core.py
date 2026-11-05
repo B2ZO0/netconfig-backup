@@ -50,6 +50,7 @@ def load_config(path: str | Path) -> dict:
     backup["repo"] = str((base / backup["repo"]).resolve())
     if backup.get("raw_dir"):
         backup["raw_dir"] = str((base / backup["raw_dir"]).resolve())
+    backup["known_hosts"] = str((base / backup.get("known_hosts", "known_hosts")).resolve())
     defaults = cfg.get("defaults", {})
     devices, seen = [], set()
     for i, raw in enumerate(cfg.get("device", []), 1):
@@ -109,13 +110,15 @@ class Result:
     extra: dict = field(default_factory=dict)
 
 
-def _fetch(dev: dict, demo_source=None) -> tuple[str, str]:
+def _fetch(dev: dict, demo_source=None, known_hosts: str | None = None) -> tuple[str, str]:
     """Returns (text for Git, raw text)."""
     if dev["type"] == "demo":
         raw = demo_source(dev)
         return raw, raw
     fetch, mask, _ = DRIVERS[dev["type"]]
     dev = _resolve_env(dev, f"device {dev['name']}")
+    if known_hosts:
+        dev["_known_hosts"] = known_hosts
     raw = fetch(dev)
     if not raw.strip():
         raise BackupError("empty configuration received")
@@ -160,8 +163,11 @@ def run(cfg: dict, demo_source=None, now: dt.datetime | None = None) -> tuple[li
         rel = f"{dev.get('folder', '').strip('/') + '/' if dev.get('folder') else ''}{dev['name']}{_ext(dev)}"
         res.path = rel
         target = Path(repo) / rel
+        if Path(repo).resolve() not in target.resolve().parents:
+            res.status, res.error = "failed", f"folder {dev.get('folder')!r} leaves the backup repository"
+            return res
         try:
-            text, raw = _fetch(dev, demo_source)
+            text, raw = _fetch(dev, demo_source, backup.get("known_hosts"))
         except (BackupError, ConfigError) as e:
             res.status, res.error = "failed", str(e)
             return res

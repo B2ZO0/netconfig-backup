@@ -7,6 +7,7 @@ raw_dir = ""            # optional: unmasked, restorable copies (keep it OUT of 
 raw_keep = 30           # raw copies kept per device
 git_push = false        # push after each commit (add a remote to the repo first)
 workers = 4             # devices backed up in parallel
+known_hosts = "known_hosts"   # SSH host keys, remembered at first connection (keep it next to this file)
 
 [notify]
 on = "change"           # change | failure | always | never
@@ -24,6 +25,8 @@ name = "sw-core"
 type = "cisco_ios"
 host = "192.0.2.1"
 password_env = "NETBACKUP_SWITCH_PASSWORD"
+# host_key = "tofu"     # tofu (default): trust the key at first connection, refuse if it changes
+#                       # strict: only keys already in known_hosts · ignore: accept any key (not recommended)
 
 [[device]]
 name = "sw-floor1"

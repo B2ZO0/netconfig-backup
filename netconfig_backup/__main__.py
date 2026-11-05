@@ -30,7 +30,7 @@ def cmd_test(args) -> int:
     failed = 0
     for dev in cfg["devices"]:
         try:
-            text, _ = core._fetch(dev)
+            text, _ = core._fetch(dev, known_hosts=cfg["backup"].get("known_hosts"))
             print(f"  {core.color('✔', '32')} {dev['name']}: {len(text.splitlines())} lines")
         except (BackupError, core.ConfigError) as e:
             failed += 1

@@ -223,19 +223,19 @@ class TestCiscoSsh(unittest.TestCase):
               "! Last configuration change at 10:00:00 UTC Mon Nov 2 2026\r\n!\r\nhostname sw-test\r\n"
               "enable secret 9 $9$abcdef\r\n!\r\ninterface GigabitEthernet1/0/1\r\n description UPLINK\r\n!\r\nend\r\n")
 
-    def setUp(self):
-        self.key = paramiko.RSAKey.generate(2048)
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind(("127.0.0.1", 0))
-        self.sock.listen(1)
-        self.port = self.sock.getsockname()[1]
-        threading.Thread(target=self.serve, daemon=True).start()
+    def start_server(self, key, port=0):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("127.0.0.1", port))
+        sock.listen(1)
+        threading.Thread(target=self.serve, args=(sock, key), daemon=True).start()
+        return sock.getsockname()[1]
 
-    def serve(self):
-        conn, _ = self.sock.accept()
+    def serve(self, sock, key):
+        conn, _ = sock.accept()
+        sock.close()
         t = paramiko.Transport(conn)
-        t.add_server_key(self.key)
+        t.add_server_key(key)
         outer = self
 
         class Server(paramiko.ServerInterface):
@@ -254,12 +254,20 @@ class TestCiscoSsh(unittest.TestCase):
             def check_channel_pty_request(self, *a):
                 return True
 
-        t.start_server(server=Server())
+        try:
+            t.start_server(server=Server())
+        except Exception:  # noqa: BLE001 - the client may refuse the key
+            return
         chan = t.accept(10)
+        if chan is None:
+            return
         chan.send(b"\r\nsw-test#")
         buf = b""
         while True:
-            data = chan.recv(1024)
+            try:
+                data = chan.recv(1024)
+            except Exception:  # noqa: BLE001
+                break
             if not data:
                 break
             buf += data
@@ -271,13 +279,45 @@ class TestCiscoSsh(unittest.TestCase):
                     chan.send(outer.CONFIG.encode())
                 chan.send(b"sw-test#")
 
+    def dev(self, port, known):
+        return {"host": "127.0.0.1", "port": port, "username": "backup", "password": "good", "timeout": 10,
+                "_known_hosts": known}
+
     def test_cisco_backup(self):
-        text = drivers.cisco_ios({"host": "127.0.0.1", "port": self.port, "username": "backup", "password": "good", "timeout": 10})
-        self.assertTrue(text.startswith("!\nhostname sw-test") or "hostname sw-test" in text.splitlines()[:3], text)
+        known = str(Path(tempfile.mkdtemp()) / "known_hosts")
+        port = self.start_server(paramiko.RSAKey.generate(2048))
+        text = drivers.cisco_ios(self.dev(port, known))
+        self.assertIn("hostname sw-test", text.splitlines()[:3], text)
         self.assertNotIn("Last configuration change", text)
         self.assertNotIn("Current configuration", text)
         self.assertNotIn("sw-test#", text)
         self.assertIn("enable secret 9 <redacted>", drivers.cisco_mask(text))
+        self.assertIn("127.0.0.1", Path(known).read_text())  # key remembered at first connection
+
+    def test_changed_host_key_is_refused(self):
+        known = str(Path(tempfile.mkdtemp()) / "known_hosts")
+        port = self.start_server(paramiko.RSAKey.generate(2048))
+        drivers.cisco_ios(self.dev(port, known))
+        self.start_server(paramiko.RSAKey.generate(2048), port)  # same address, another key
+        with self.assertRaisesRegex(drivers.BackupError, "CHANGED"):
+            drivers.cisco_ios(self.dev(port, known))
+
+    def test_strict_refuses_unknown_keys(self):
+        known = str(Path(tempfile.mkdtemp()) / "known_hosts")
+        port = self.start_server(paramiko.RSAKey.generate(2048))
+        with self.assertRaisesRegex(drivers.BackupError, "unknown SSH host key"):
+            drivers.cisco_ios({**self.dev(port, known), "host_key": "strict"})
+
+
+class TestSafety(Base):
+    def test_folder_cannot_leave_the_repository(self):
+        p = Path(self.tmp) / "devices.toml"
+        p.write_text(f'[backup]\nrepo = "repo"\n[[device]]\nname = "fw"\ntype = "fortigate"\nhost = "{self.url}"\n'
+                     f'token = "good-token"\nfolder = "../../escape"\n')
+        res, _ = core.run(core.load_config(p))
+        self.assertEqual(res[0].status, "failed")
+        self.assertIn("leaves the backup repository", res[0].error)
+        self.assertFalse((Path(self.tmp).parent / "escape").exists())
 
 
 if __name__ == "__main__":
