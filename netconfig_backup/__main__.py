@@ -80,7 +80,7 @@ snmp-server community <redacted> RO
 ntp server 192.0.2.123
 end
 """
-DEMO_FW = """#config-version=FGT70G-7.4.12-FW-build2902:opmode=0:vdom=0
+DEMO_FW = """#config-version=FGT60F-7.4.4-FW-build2662:opmode=0:vdom=0
 config system global
     set hostname "fw01"
     set timezone "Europe/Paris"

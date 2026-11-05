@@ -13,9 +13,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from netconfig_backup import core, drivers  # noqa: E402
 
-FORTI_CONF = """#config-version=FGT70G-7.4.12-FW-build2902:opmode=0:vdom=0
+FORTI_CONF = """#config-version=FGT60F-7.4.4-FW-build2662:opmode=0:vdom=0
 #conf_file_ver=123456789
-#buildno=2902
+#buildno=2662
 config system admin
     edit "admin"
         set password ENC SH2randomsalt{n}==
