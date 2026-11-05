@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netconfig-backup"
+version = "1.0.0"
+description = "Network device configurations (Cisco, FortiGate, UniFi, any SSH device), versioned in Git."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Enzo Marechal" }]
+keywords = ["network", "backup", "cisco", "fortigate", "unifi", "git", "sysadmin"]
+dependencies = []
+
+[project.optional-dependencies]
+ssh = ["paramiko>=3.4"]
+
+[project.scripts]
+netconfig-backup = "netconfig_backup.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/B2ZO0/netconfig-backup"
+
+[tool.setuptools]
+packages = ["netconfig_backup"]

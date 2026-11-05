@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up network device configurations every night
+
+[Timer]
+OnCalendar=*-*-* 02:15
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

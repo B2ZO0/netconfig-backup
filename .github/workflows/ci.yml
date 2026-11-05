@@ -1,0 +1,22 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: { python-version: "${{ matrix.python }}" }
+      - run: pip install paramiko ruff
+      - run: ruff check --select E,F,W,B --ignore E501 .
+      - name: Tests (simulated FortiGate, UniFi and Cisco SSH)
+        run: |
+          git config --global init.defaultBranch main
+          python -m unittest discover -v -s tests
+      - name: Install as a command
+        run: pip install . && netconfig-backup --version && netconfig-backup demo /tmp/demo

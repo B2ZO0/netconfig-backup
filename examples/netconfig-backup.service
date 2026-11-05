@@ -1,0 +1,11 @@
+[Unit]
+Description=Back up network device configurations
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=netbackup
+WorkingDirectory=/opt/netconfig-backup
+EnvironmentFile=/etc/netconfig-backup.env
+ExecStart=/opt/netconfig-backup/.venv/bin/netconfig-backup -c /opt/netconfig-backup/devices.toml run

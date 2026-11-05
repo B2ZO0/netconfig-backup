@@ -1,0 +1,57 @@
+# netconfig-backup configuration. Copy to devices.toml and adapt.
+# Secrets: use *_env keys (password_env, token_env) so they stay out of this file.
+
+[backup]
+repo = "backups"        # Git repository, created if missing (one file per device)
+raw_dir = ""            # optional: unmasked, restorable copies (keep it OUT of Git, chmod 600)
+raw_keep = 30           # raw copies kept per device
+git_push = false        # push after each commit (add a remote to the repo first)
+workers = 4             # devices backed up in parallel
+
+[notify]
+on = "change"           # change | failure | always | never
+telegram_bot_token_env = ""   # e.g. "NETBACKUP_TELEGRAM_TOKEN"
+telegram_chat_id = ""
+webhook_url = ""        # Discord, Slack, Mattermost or any JSON webhook
+
+# Values shared by every device (each device can override them)
+[defaults]
+username = "backup"
+timeout = 30
+
+[[device]]
+name = "sw-core"
+type = "cisco_ios"
+host = "192.0.2.1"
+password_env = "NETBACKUP_SWITCH_PASSWORD"
+
+[[device]]
+name = "sw-floor1"
+type = "cisco_ios"
+host = "192.0.2.2"
+password_env = "NETBACKUP_SWITCH_PASSWORD"
+folder = "switches"     # optional sub-folder in the repository
+
+[[device]]
+name = "fw01"
+type = "fortigate"
+host = "192.0.2.254"
+token_env = "NETBACKUP_FORTIGATE_TOKEN"   # REST API admin with a read-only profile
+verify_tls = false      # self-signed certificate; better: ca_file = "fortigate.pem"
+
+[[device]]
+name = "unifi"
+type = "unifi"
+host = "192.0.2.5"
+port = 8443             # classic controller; UniFi OS consoles use 443
+password_env = "NETBACKUP_UNIFI_PASSWORD"   # local, read-only (View Only) account
+verify_tls = false
+
+# Any other SSH device: give the command that prints the configuration
+[[device]]
+name = "router-mikrotik"
+type = "ssh"
+host = "192.0.2.3"
+password_env = "NETBACKUP_MIKROTIK_PASSWORD"
+command = "/export"
+ignore = ["^# .* by RouterOS"]   # regexes of lines that change at every export
